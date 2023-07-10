@@ -2,9 +2,8 @@ Source: erfs
 Section: net
 Priority: optional
 Maintainer: skyper <skyper@thc.org>
-Uploaders: Daniel Echeverri <epsilon@debian.org>
 Build-Depends: debhelper-compat (= 13)
-Standards-Version: 4.5.1
+Standards-Version: 4.5.0
 Homepage: https://github.com/hackerschoice/erfs
 Rules-Requires-Root: no
 
