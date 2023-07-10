@@ -1,0 +1,455 @@
+#! /bin/bash
+
+ROOT_DIR=~/thc
+THC_RFS_VERSION="1.4"
+[ -z "$THC_RFS_SERVER" ] && THC_RFS_SERVER=rfs.thc.org
+[ -z "$THC_RFS_PORT" ] && THC_RFS_PORT=22
+
+FUSE_OPT=""
+if [[ x"$OSTYPE" == "xdarwin"* ]]; then
+	# Setting 'noapplexattr' prevents 'finder' from copying.
+	FUSE_OPT="${FUSE_OPT} -o iosize=65536,noappledouble"
+fi
+# Turn of compression. All transfered data is encrypted and thus cant be compressed.
+SSHFS_OPT="-o ServerAliveInterval=30,reconnect,attr_timeout=60,auto_cache,compression=no,default_permissions"
+SSHFS_OPT="${SSHFS_OPT} ${FUSE_OPT}"
+
+# l(58^44)/l(2) == 257 Bit
+ENC_B58_LEN=44
+# l(58^32)/l(2) == 187 Bit
+ENC_B58_LEN=32
+# l(58^24)/l(2) == 140 Bit (ought to be enough)
+ENC_B58_LEN=24
+
+SSH_KEY_FILE="${ROOT_DIR}/.id_rsa-rfs"
+SSH_PARAM="-q -i ${SSH_KEY_FILE}"
+
+SSH_PRIV_KEY="-----BEGIN OPENSSH PRIVATE KEY-----
+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
+Fb9mr1O9fL8zkAAAALdHBAdGVyZWtub3I=
+-----END OPENSSH PRIVATE KEY-----"
+
+debug()
+{
+	#echo $@
+	:
+}
+
+usage()
+{
+	echo "\
+ERFS Version: $THC_RFS_VERSION
+$0 <CMD> [<options>] <share-secret> [<mount-point>]
+
+CMD:
+    init    - Create a NEW secure file system
+    mount   - Mount a secure file system
+    umount  - Unmount one or all secure file systems
+    clean   - Unmount all and purge runtime directories (wont delete data).
+
+Options:
+    -x      - Prompt for SHARE-SECRET
+
+Create a NEW and empty secure remote file system:
+    $ $0 init 
+
+Mount an EXISTING secure remote file system to ~/test:
+    $ $0 mount <SHARE-SECRET> ~/test
+
+Unmount a secure remote file system:
+    $ $0 umount <SHARE-SECRET>
+
+Unmount all secure remote file systems:
+    $ $0 umount"
+
+	exit 1
+}
+
+# Do a dirty base58 from input data (likely to be base64)
+b58sanitize()
+{
+	local CLEAR
+	CLEAR=$(echo "$1" | sed 's/[^a-zA-Z0-9]//g' | sed 's/[0OIl]//g'| head -n1 | cut -c 1-"$2")
+	if [ ${#CLEAR} -lt "$2" ]; then
+		# This is fatal and should never happen
+		echo "ERROR base58: ${#CLEAR} but length is $2"
+		exit 1
+	fi
+	echo "$CLEAR"
+}
+
+# Converts (user-)input into likely output.
+# 0 -> o
+# O -> o
+# l -> 1
+# I -> 1
+b58convert()
+{
+	# shellcheck disable=SC2020
+	echo "$1" | tr 0OlI oo11
+}
+
+# Sanitize mount point
+mp_sanitize()
+{
+	local CLEAR
+	CLEAR="${1}"
+	# If you like to have awkward characters in your mount point
+	# (mkdir "~.../;id|-") then you can remove the next line at your
+	# own risk, fool. You have been warned...
+	CLEAR="${1//[^a-zA-Z0-9_- /]/}"
+	echo "$CLEAR"
+}
+
+# Deterministic secret from Master-Secret
+derive_secrets()
+{
+	# Derive all keys from the master key
+	# RSEC is the username
+	# RID a local id (short)
+	# EPAS is the encryptino password
+	# SPAS is the ssh login password
+	RSEC=$(b58sanitize "$(echo s1"${1}" | openssl sha256 -binary | openssl base64)" 16)
+	RID=$(b58sanitize "$(echo i2"${1}" | openssl sha256 -binary | openssl base64)" 4) 
+	EPAS=$(b58sanitize "$(echo s3"${1}" | openssl sha256 -binary | openssl base64)" "$ENC_B58_LEN")
+	SPAS=$(b58sanitize "$(echo p4"${1}" | openssl sha256 -binary | openssl base64)" 16)
+}
+
+master_pwd_new()
+{
+	# Create a new Master Password
+	MPASS=$(b58sanitize "$(dd if=/dev/urandom bs=1 count=48 2>/dev/null | openssl base64)" "$ENC_B58_LEN")
+}
+
+unmount_cmd()
+{
+	# Linux does not accept sym-link as unmount points.
+	REAL_RSEC="${1}"
+	[ -L "${1}" ] && REAL_RSEC=$(readlink "${1}")
+	if [ x"${HAS_FUSERMOUNT}" = x1 ]; then
+		fusermount -uz "${REAL_RSEC}"
+		ret=$?
+	else
+		# Try MacOS way..(fusermount does not exist)
+		umount -f "${REAL_RSEC}"
+		ret=$?
+	fi
+}
+
+unmount()
+{
+	# Three cases to consider:
+	# 1. Unmount fails because mount-point is busy.
+	#    -> Do not clear runtime files
+	# 2. Unmount fails because mount-point directory does not exist
+	#    -> Clear runtime files
+	# 3. Unmount fails because mount-point is already unmounted
+	#    -> Clear runtime files
+
+	# Do not return if this fails. We like to unmount
+	# rfs regardless if we managed to unmount rsec.
+	unmount_cmd "${ROOT_DIR}/.run/id-${1}/rsec"
+	if [ $ret -ne 0 ]; then
+		#echo "unmount rsec failed"
+		:
+	fi
+	[ -L "${ROOT_DIR}/.run/id-${1}/rsec" ] && rm -f  "${ROOT_DIR}/.run/id-${1}/rsec"
+	[ -d "${ROOT_DIR}/.run/id-${1}/rsec" ] && rmdir  "${ROOT_DIR}/.run/id-${1}/rsec"
+	unmount_cmd "${ROOT_DIR}/.run/id-${1}/rfs"
+	if [ $ret -ne 0 ]; then
+		# unmount rfs failed.
+		:
+	fi
+	# Clear runtime files if 'rsec' has been unmounted (but only then)
+	[ -d "${ROOT_DIR}/.run/id-${1}/rfs" ] && rmdir  "${ROOT_DIR}/.run/id-${1}/rfs"
+	rmdir "${ROOT_DIR}/.run/id-${1}" 2>/dev/null
+	rm -f "${ROOT_DIR}/sec-${1}"
+}
+
+unmount_all()
+{
+	for x in "${ROOT_DIR}/.run/id-"*; do
+		if [ ! -d "${x}" ]; then
+			break
+		fi
+		id=$(echo "$x" | cut -f2 -d-)
+		debug "Working on '${id}'"
+		unmount "$id"
+	done
+}
+
+get_mpass()
+{
+	# read master password from file,device or sym-link if exists
+
+	# Grugq's idea to have -x to read password from stdin:
+	# shellcheck disable=SC2153 # We mean SEC, not RSEC
+	if [ x"${1}" = "x-x" ] || [ x"${1}" = "xstdin" ]; then
+		echo -n "Enter SHARE-SECRET: "
+		read -r mpass
+	elif [ -e "${1}" ]; then
+		read -r mpass <"${1}"
+	elif [ x"${1}" != x ]; then
+		mpass="${1}"
+	elif [ x"${SEC}" != x ]; then
+		# Try to get password from environment variable
+		mpass="${SEC}"
+	else
+		echo "ERROR: Need to specify password"
+		exit 1
+	fi
+
+	mpass=$(b58convert "$mpass")
+	if [ ${#mpass} -ne "$ENC_B58_LEN" ]; then
+		echo "ERROR. Illegal master password"
+		exit 1
+	fi
+
+}
+
+# Replace string in file
+replace()
+{
+	if ! grep "$2" "$1" >/dev/null; then
+		# Pattern found; replace in file
+		sed -i-old "s/$2/$3/g" "$1" >/dev/null
+	fi
+}
+
+if [ $# -lt 1 ]; then
+	usage
+fi
+
+command -v sshfs >/dev/null 2>&1 || { echo >&2 "sshfs not found. Try 'apt-get install sshfs'"; exit 1; }
+command -v encfs >/dev/null 2>&1 || { echo >&2 "EncFS not found. Try 'apt-get install encfs'"; exit 1; }
+# MacOS does not have fusermount and uses 'umount' instead.
+HAS_FUSERMOUNT=1
+command -v fusermount >/dev/null 2>&1 || HAS_FUSERMOUNT=0 
+
+if [[ x"$OSTYPE" == "xdarwin"* ]]; then
+	VER=$(sshfs --version 2>&1 | grep ^SSHFS | cut -f3 -d" ")
+	if [ x"$VER" = "x2.9" ]; then
+		echo "
+Buggy SSHFS dedected. Your read performance might be slow.
+Please read https://github.com/osxfuse/sshfs/issues/57 for details.
+
+To fix this please executed:
+    $ sudo curl -sSL https://tiny.cc/apewqz >\"$(which sshfs)\""
+	fi
+
+fi
+
+mkdir -p "${ROOT_DIR}"
+if [ ! -f "${SSH_KEY_FILE}" ]; then
+	echo "${SSH_PRIV_KEY}" >"${SSH_KEY_FILE}"
+	chmod 600 "${SSH_KEY_FILE}"
+fi
+
+if [ x"$1" = xinit ] || [ x"$1" = xnew ] || [ x"$1" = xi ]; then
+	if [ x"$2" != x ]; then
+		usage
+	fi
+	master_pwd_new
+	derive_secrets "${MPASS}"
+	export THC_RFS_SECRET="${RSEC}"
+	export THC_SSH_PASSWORD="${SPAS}"
+	export THC_RFS_VERSION="1.1"
+	# Bump the server to create a new file share
+	# shellcheck disable=SC2086 # Allow SSH_PARAM to split into words
+	ssh -p ${THC_RFS_PORT} ${SSH_PARAM} -o SendEnv="THC_RFS_VERSION THC_RFS_TOKEN THC_RFS_SECRET THC_SSH_PASSWORD" rfs-init@${THC_RFS_SERVER}
+	ret=$?
+	if [ $ret -ne 0 ]; then
+		echo "Server problem. Aborting..."
+		exit 1
+	fi
+	echo "
+--> You MUST remember this SHARE-SECRET. Access to the data is lost <--
+--> *FOREVER* if the SHARE-SECRET is lost. KEEP IT SAFE.            <--
+
+        ##############################################
+        ##                                          ##
+        ##  SHARE-SECRET: $MPASS  ##
+        ##                                          ##
+        ##############################################
+
+SUCCESS! Now mount your newly created file system like so:
+
+  $ $0 mount -x
+or
+  $ $0 mount ${MPASS}
+or 
+  $ SEC=${MPASS} $0 m "
+
+	exit 0
+elif [ x"$1" = xstop ] || [ x"$1" = xu ] || [ x"$1" = xumount ] || [ x"$1" = xunmount ]; then
+	# Unmount all if no share-secret
+	if [ ${#2} -eq 0 ]; then
+		unmount_all
+		exit 0
+	fi
+	# Unmount by mount point
+	if [ -d "${2}" ]; then
+		MPOINT=$(mp_sanitize "${2}")
+		if [ ! -f "${MPOINT}/.thc.id" ]; then
+			echo "ERROR: Please specify the SHARE-SECRET instead of the mount point"
+			echo "   $0 umount <SHARE-SECRET>"
+			echo "or unmount all devices:"
+			echo "   $0 unmount"
+			exit 1
+		fi
+		RID=$(cat "${MPOINT}"/.thc.id)
+		unset MPOINT
+	else
+		# Unmount by share-secret
+		get_mpass "${2}"
+		derive_secrets "${mpass}"
+	fi
+	unmount "${RID}"
+	exit 0
+elif [ x"$1" = xclean ] || [ x"$1" = xc ]; then
+	# unmount all directories and clean all runtime directories
+	unmount_all
+	[ -d "${ROOT_DIR}/.run" ] && rmdir "${ROOT_DIR}/.run"
+	for x in "${ROOT_DIR}/sec-"*; do
+		if [ ! -L "${x}" ]; then
+			break
+		fi
+		rm -f "${x}"
+	done
+	rm -f "${ROOT_DIR}/.id_rsa-rfs"
+	rmdir "${ROOT_DIR}"
+	exit 0
+fi
+
+# HERE: Command is 'mount' or similar.
+if [ x"$1" != xmount ] && [ x"$1" != xm ]; then
+	echo "ERROR: Unknown command or illegal share-secret."
+	usage
+fi
+
+get_mpass "${2}"
+derive_secrets "${mpass}"
+
+# Create state/runtime directories
+mkdir -p "${ROOT_DIR}/.run/id-${RID}"
+
+debug "DEBUG master $MPASS  (r $RSEC e $EPAS rid $RID s $SPAS)"
+
+mkdir -p "${ROOT_DIR}/.run/id-${RID}/rfs"
+# Linux non-root does not allow 'allow_other'
+# shellcheck disable=SC2086 # Allow SSHFS_OPT to split into words
+sshfs -p "${THC_RFS_PORT}" ${SSHFS_OPT} -o ssh_command='ssh -o StrictHostKeyChecking=accept-new' -o password_stdin,idmap=user,uid="${UID}",gid="$(id -g)" rfs-"${RSEC}@${THC_RFS_SERVER}:rw" "${ROOT_DIR}/.run/id-${RID}/rfs" <<<"${SPAS}"
+ret=$?
+unset SPAS
+if [ $ret -ne 0 ]; then
+	# sshfs failed.
+	echo "ERROR: sshfs failed."
+	echo "    1. The volume is already mounted."
+	echo "    2. Wrong SHARE-SECRET."
+	echo "    3. The server can not be reached."
+	exit 1
+fi
+
+# Check if the 'encrypted' subdirectory exists
+if [ ! -d "${ROOT_DIR}/.run/id-${RID}/rfs/encrypted" ]; then
+	# File system exists (sshfs worked) but no file found.
+	# This should never happen unless someone delete the 'encrypted'
+	# directory manually.
+	echo "ERROR: File System does not exist. Wrong share-secret?"
+	exit 1 
+fi
+
+# Increase block-size to 4k to increase EncFS performance (3x on MacOS)
+FILE="${ROOT_DIR}/.run/id-${RID}/rfs/encrypted/.encfs6.xml"
+if [ -f "$FILE" ] && [ ! -f "$FILE"-old ]; then
+	replace "${ROOT_DIR}/.run/id-${RID}/rfs/encrypted/.encfs6.xml" "blockSize>1024" "blockSize>4096"
+fi
+
+# Display MOTD and wait...Only way we can notiy a user..
+if [ -f "${ROOT_DIR}/.run/id-${RID}/rfs/motd" ]; then
+	# Discard any nasty characters. Limit to 24 lines.
+	tail -n24 <"${ROOT_DIR}/.run/id-${RID}/rfs/motd" | sed 's/[^a-zA-Z0-9#!. ]//g' 
+	echo "Waiting 10 seconds before continuing..."
+	sleep 10
+fi
+
+# Cleanup previous state 
+USER_MOUNT_POINT="${ROOT_DIR}/sec-${RID}"
+ENCFS_MOUNT_POINT="${ROOT_DIR}/.run/id-${RID}/rsec"
+[ -L "${ENCFS_MOUNT_POINT}" ] && rm -f "${ENCFS_MOUNT_POINT}"
+rmdir "${ROOT_DIR}/.run/id-${RID}/rsec" 2>/dev/null
+if [ ${#3} -ne 0 ]; then
+	MPOINT=$(mp_sanitize "${3}")
+	if [ ! -d "${MPOINT}" ]; then
+		echo "Directory ${MPOINT} does not exist."
+		unmount "${RID}"
+		exit 1 
+	fi
+	# Link from the default mount point to the user specified mount point
+	ln -sf "${MPOINT}" "${ENCFS_MOUNT_POINT}"
+	ENCFS_MOUNT_POINT="${MPOINT}"
+	USER_MOUNT_POINT="${ENCFS_MOUNT_POINT}"
+	unset MPOINT
+else
+	mkdir -p "${ROOT_DIR}/.run/id-${RID}/rsec"
+fi
+
+ENCFS_OPT="-S --standard --no-default-flags"
+FUSE_OPT="${FUSE_OPT} -o use_ino,default_permissions"
+if [[ x"$OSTYPE" == "xdarwin"* ]]; then
+	CLEAR="${USER_MOUNT_POINT//[^a-zA-Z0-9_\/-]/}"
+	VOLNAME="$(basename "${CLEAR}")"
+	FUSE_OPT="${FUSE_OPT} -o volname=${VOLNAME},async,local"
+fi
+# Securely pass password to encfs...well, as secure as this shit can be.
+#
+# shellcheck disable=SC2086 # Allow ENCFS_OPT to split into words
+encfs ${ENCFS_OPT} "${ROOT_DIR}/.run/id-${RID}/rfs/encrypted" "${ENCFS_MOUNT_POINT}" -- ${FUSE_OPT} <<<"${EPAS}" >/dev/null
+ret=$?
+unset EPAS
+if [ $ret -ne 0 ]; then
+	echo "EncFS failed. Aborting..."
+	unmount "${RID}"
+	exit 1
+fi
+
+ln -sf "${ENCFS_MOUNT_POINT}" "${ROOT_DIR}/sec-${RID}"
+
+# Store the ID. We need this to 'erfs u <mount-point>'
+echo "${RID}" >"${USER_MOUNT_POINT}/.thc.id"
+echo "Encrypted partition mounted to ${USER_MOUNT_POINT}"
+
